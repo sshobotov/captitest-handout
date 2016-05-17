@@ -10,28 +10,29 @@ import SparseIterators._
 object TestAssignment {
   /**
    * Generate a contiguous sub-sample from given sequence.
-   * 
-   * Iterator provided should be immediately thrown away after calling this method, 
+   *
+   * Iterator provided should be immediately thrown away after calling this method,
    * so don't worry about any side-effects.
-   * 
+   *
    * @param iterator to be sampled
    * @param after the index of first element to be included, zero-based
    * @param sampleSize quantity of elements returned
-   * @return sampleAfter(iteratorFromOne, 1, 2) should be same as to Seq[BigInt](2,3,4).toIterator 
+   * @return sampleAfter(iteratorFromOne, 1, 2) should be same as to Seq[BigInt](2,3,4).toIterator
    */
-  def sampleAfter(iterator: Iterator[BigInt], after: Int, sampleSize: Int): Iterator[BigInt] = ???
+  def sampleAfter(iterator: Iterator[BigInt], after: Int, sampleSize: Int): Iterator[BigInt] =
+    iterator.slice(after, after + sampleSize)
 
   /**
    * Get value by index from given iterator.
-   * 
-   * Iterator provided should be immediately thrown away after calling this method, 
+   *
+   * Iterator provided should be immediately thrown away after calling this method,
    * so don't worry about any side-effects.
-   * 
+   *
    * @param iterator to get value from
    * @param position zero-based
    * @return value at given position
    */
-  def valueAt(iterator: Iterator[BigInt], position: Int): BigInt = ???
+  def valueAt(iterator: Iterator[BigInt], position: Int): BigInt = iterator.drop(position).next
 
   /**
    * Produce an iterator which generates values from given subset of input iterators.
@@ -45,7 +46,37 @@ object TestAssignment {
    * @param iterators to be merged
    * @return Iterator with all elements and ascending sorting retained
    */
-  def mergeIterators(iterators: Seq[Iterator[BigInt]]): Iterator[BigInt] = ???
+  def mergeIterators(iterators: Seq[Iterator[BigInt]]): Iterator[BigInt] =
+    new Iterator[BigInt] {
+      private var valuesMap = scala.collection.SortedMap.empty[BigInt, BigInt]
+      private var nextDupesCount: Option[BigInt] = None
+
+      override def hasNext: Boolean = true
+      override def next(): BigInt = {
+        if (nextDupesCount.isEmpty) {
+          iterators.filter(_.hasNext).foreach(iterator => {
+            val value = iterator.next
+            val dupes = valuesMap.getOrElse(value, BigInt(-1))
+
+            valuesMap += (value -> (dupes + 1))
+          })
+
+          val (nextValue, dupes) = valuesMap.head
+
+          valuesMap = valuesMap.tail
+          if (dupes > 0) {
+            nextDupesCount = Some(dupes)
+          }
+
+          nextValue
+        } else {
+          val nextValue = nextDupesCount.get
+          nextDupesCount = None
+
+          nextValue
+        }
+      }
+    }
 
   /**
    * How much elements, on average, are included in sparse stream from the general sequence
@@ -73,6 +104,9 @@ object TestAssignment {
    *
    * @return Seq of (Sparsity, Try[Approximation]) pairs
    */
-  def approximatesFor(sparsityMin: Int, sparsityMax: Int, extent: Int): Seq[(Int,Try[Double])] = ???
+  def approximatesFor(sparsityMin: Int, sparsityMax: Int, extent: Int): Seq[(Int,Try[Double])] =
+    (sparsityMin to sparsityMax).par
+      .map(sparsity => (sparsity, Try { approximateSparsity(sparsity, extent) }))
+      .toList
 
 }
